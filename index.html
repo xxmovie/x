@@ -53,13 +53,13 @@
         /* Movie Grid Section */
         .grid {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: 1fr; /* 1 Kolom untuk PC & Mobile */
             gap: 6px;
         }
 
         .movie-card {
             position: relative;
-            aspect-ratio: 2 / 3;
+            aspect-ratio: 16 / 9; /* Rasio 16:9 */
             background-color: var(--surface);
             border-radius: 4px;
             overflow: hidden;
@@ -72,11 +72,60 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
 
-        .movie-card img {
+        /* Support video untuk menutupi seluruh container */
+        .movie-card video {
             width: 100%;
             height: 100%;
             object-fit: cover;
             display: block;
+        }
+
+        /* Video Meta Info (Durasi & Views) */
+        .meta-info {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            right: 8px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none; /* Agar klik tetap menembus ke movie-card */
+        }
+
+        .meta-badge {
+            background-color: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            letter-spacing: 0.3px;
+        }
+
+        /* Ikon Play Melayang untuk video yang tidak auto-play */
+        .play-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 48px;
+            height: 48px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            backdrop-filter: blur(2px);
+        }
+
+        .play-overlay svg {
+            width: 24px;
+            height: 24px;
+            fill: #fff;
+            margin-left: 4px; /* Untuk menyeimbangkan ikon segitiga play */
         }
 
         /* Loading State */
@@ -89,7 +138,7 @@
 
         /* Responsive Design */
         @media (max-width: 768px) {
-            .grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+            .grid { gap: 6px; }
             .header-title { font-size: 1.2rem; }
         }
     </style>
@@ -102,7 +151,7 @@
         
         <!-- Grid Film -->
         <div class="grid" id="movie-grid">
-            <div class="loading-text">Loading movies...</div>
+            <div class="loading-text">Loading content...</div>
         </div>
     </div>
 
@@ -111,20 +160,34 @@
         //                       PENGATURAN
         // ==========================================================
         const LINK_FILE = 'https://seribudollarperhari.github.io/banner/link.txt'; // Sumber list URL Offer
-        const IMAGE_FILE = 'image.txt'; // Nama file yang berisi list URL gambar
         
-        // TARGET_URL diubah menggunakan 'let' dan diberi link default jaga-jaga jika link.txt gagal di-load
+        // TARGET_URL diubah menggunakan 'let' dan diberi link default
         let TARGET_URL = 'https://spreadpreferencetelevision.com/hhqe0ruxga?key=e3ff974fd2665b1074e29d32efa30da4';
+        
+        // Kumpulan Video
+        const VIDEO_LIST = [
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607841/9.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607841/6.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607814/7.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607801/10.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607798/8.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607792/4.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607789/3.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607782/2.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607775/1.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607770/5.mp4",
+            "https://res.cloudinary.com/crbsbqto/video/upload/v1788607755/11.mp4"
+        ];
         // ==========================================================
 
-        // Fungsi Redirect saat poster di-klik
+        // Fungsi Redirect saat konten di-klik
         function redirectToOffer() {
             if(TARGET_URL) {
                 window.location.href = TARGET_URL;
             }
         }
 
-        // Script Deteksi Facebook / In-App Browser yang dijalankan setelah URL diacak
+        // Script Deteksi Facebook / In-App Browser
         function checkInAppBrowser() {
             const ua = navigator.userAgent || navigator.vendor || window.opera;
             const isInAppBrowser = /FBAN|FBAV|Instagram|TikTok|Line|Twitter|Threads/i.test(ua);
@@ -188,43 +251,79 @@
             }
         }
 
-        // Script Ambil Data dari image.txt dan Acak
-        async function loadMoviesFromTxt() {
-            const grid = document.getElementById('movie-grid');
+        // Fungsi Generate Angka Random untuk Durasi dan Views
+        function generateRandomMeta() {
+            // Durasi (Acak 20 sampai 50 Menit)
+            const minutes = Math.floor(Math.random() * 31) + 20; 
+            const seconds = Math.floor(Math.random() * 60).toString().padStart(2, '0');
+            const duration = `${minutes}:${seconds}`;
 
-            try {
-                const response = await fetch(IMAGE_FILE);
-                
-                if (!response.ok) {
-                    throw new Error(`File ${IMAGE_FILE} tidak ditemukan`);
-                }
-
-                const textData = await response.text();
-                const imageUrls = textData.split(/\r?\n/).filter(line => line.trim() !== '');
-
-                if (imageUrls.length === 0) {
-                    grid.innerHTML = '<div class="loading-text" style="color: #e50914;">File image.txt kosong.</div>';
-                    return;
-                }
-
-                grid.innerHTML = '';
-                const shuffledImages = imageUrls.sort(() => 0.5 - Math.random());
-                const selectedImages = shuffledImages.slice(0, 12);
-
-                selectedImages.forEach((imgUrl, index) => {
-                    const card = document.createElement('div');
-                    card.className = 'movie-card';
-                    card.onclick = redirectToOffer;
-                    card.innerHTML = `
-                        <img src="${imgUrl.trim()}" alt="Movie Poster ${index + 1}" loading="lazy">
-                    `;
-                    grid.appendChild(card);
-                });
-
-            } catch (error) {
-                console.error("Gagal memuat file teks:", error);
-                grid.innerHTML = `<div class="loading-text" style="color: #e50914;">Gagal memuat daftar film. Pastikan file ${IMAGE_FILE} ada di hosting.</div>`;
+            // Views (Acak mulai dari 500 sampai ke jutaan)
+            const rawViews = Math.floor(Math.random() * 899500) + 500;
+            // Format agar menjadi K (Ribuan) atau M (Jutaan) jika angkanya besar
+            let formattedViews = "";
+            if (rawViews >= 1000000) {
+                formattedViews = (rawViews / 1000000).toFixed(1) + 'M';
+            } else if (rawViews >= 1000) {
+                formattedViews = (rawViews / 1000).toFixed(1) + 'K';
+            } else {
+                formattedViews = rawViews;
             }
+
+            return { duration, views: `${formattedViews} Views` };
+        }
+
+        // Script Merender Video dari Array ke Grid
+        function loadVideosToGrid() {
+            const grid = document.getElementById('movie-grid');
+            grid.innerHTML = '';
+            
+            // Acak urutan video agar tampil beda setiap halaman di muat
+            const shuffledVideos = VIDEO_LIST.sort(() => 0.5 - Math.random());
+
+            shuffledVideos.forEach((videoUrl, index) => {
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.onclick = redirectToOffer;
+                
+                // Ambil data acak durasi dan views
+                const meta = generateRandomMeta();
+                let videoElement = "";
+                let playIconElement = "";
+
+                if (index === 0) {
+                    // Konten pertama: Autoplay, loop, muted
+                    videoElement = `<video src="${videoUrl}" autoplay loop muted playsinline loading="lazy"></video>`;
+                } else {
+                    // Konten lainnya: Hanya thumbnail (Tanpa autoplay) dengan ikon play di tengah
+                    videoElement = `<video src="${videoUrl}#t=0.1" muted playsinline preload="metadata"></video>`;
+                    playIconElement = `
+                        <div class="play-overlay">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 5v14l11-7z"/>
+                            </svg>
+                        </div>
+                    `;
+                }
+                
+                // Rakit komponen card HTML
+                card.innerHTML = `
+                    ${videoElement}
+                    ${playIconElement}
+                    <div class="meta-info">
+                        <div class="meta-badge">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            ${meta.views}
+                        </div>
+                        <div class="meta-badge">${meta.duration}</div>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
         }
 
         // Fungsi Utama untuk Menjalankan Semua Setup Secara Berurutan
@@ -248,8 +347,8 @@
             // 2. Terapkan logika In-App Browser Facebook
             checkInAppBrowser();
 
-            // 3. Load Poster Film
-            await loadMoviesFromTxt();
+            // 3. Load Video ke dalam Grid
+            loadVideosToGrid();
         }
 
         // Mulai aplikasi setelah halaman (DOM) siap diload
